@@ -36,7 +36,7 @@ import {
 } from '../hooks/useCommandCompletion.js';
 import type { Key } from '../hooks/useKeypress.js';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { keyMatchers, Command } from '../keyMatchers.js';
+import { Command, type KeyMatchers } from '../keyMatchers.js';
 import { formatCommand } from '../utils/keybindingUtils.js';
 import type { CommandContext, SlashCommand } from '../commands/types.js';
 import type { Config } from '@google/gemini-cli-core';
@@ -106,7 +106,7 @@ export interface InputPromptProps {
   approvalMode: ApprovalMode;
   onEscapePromptChange?: (showPrompt: boolean) => void;
   onSuggestionsVisibilityChange?: (visible: boolean) => void;
-  vimHandleInput?: (key: Key) => boolean;
+  vimHandleInput?: (key: Key, matchers: KeyMatchers) => boolean;
   isEmbeddedShellFocused?: boolean;
   setQueueErrorMessage: (message: string | null) => void;
   streamingState: StreamingState;
@@ -591,46 +591,46 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   );
 
   const handleInput = useCallback(
-    (key: Key) => {
+    (key: Key, matchers: KeyMatchers) => {
       // Determine if this keypress is a history navigation command
       const isHistoryUp =
         !shellModeActive &&
-        (keyMatchers[Command.HISTORY_UP](key) ||
-          (keyMatchers[Command.NAVIGATION_UP](key) &&
+        (matchers[Command.HISTORY_UP](key) ||
+          (matchers[Command.NAVIGATION_UP](key) &&
             (buffer.allVisualLines.length === 1 ||
               (buffer.visualCursor[0] === 0 && buffer.visualScrollRow === 0))));
       const isHistoryDown =
         !shellModeActive &&
-        (keyMatchers[Command.HISTORY_DOWN](key) ||
-          (keyMatchers[Command.NAVIGATION_DOWN](key) &&
+        (matchers[Command.HISTORY_DOWN](key) ||
+          (matchers[Command.NAVIGATION_DOWN](key) &&
             (buffer.allVisualLines.length === 1 ||
               buffer.visualCursor[0] === buffer.allVisualLines.length - 1)));
 
       const isHistoryNav = isHistoryUp || isHistoryDown;
       const isCursorMovement =
-        keyMatchers[Command.MOVE_LEFT](key) ||
-        keyMatchers[Command.MOVE_RIGHT](key) ||
-        keyMatchers[Command.MOVE_UP](key) ||
-        keyMatchers[Command.MOVE_DOWN](key) ||
-        keyMatchers[Command.MOVE_WORD_LEFT](key) ||
-        keyMatchers[Command.MOVE_WORD_RIGHT](key) ||
-        keyMatchers[Command.HOME](key) ||
-        keyMatchers[Command.END](key);
+        matchers[Command.MOVE_LEFT](key) ||
+        matchers[Command.MOVE_RIGHT](key) ||
+        matchers[Command.MOVE_UP](key) ||
+        matchers[Command.MOVE_DOWN](key) ||
+        matchers[Command.MOVE_WORD_LEFT](key) ||
+        matchers[Command.MOVE_WORD_RIGHT](key) ||
+        matchers[Command.HOME](key) ||
+        matchers[Command.END](key);
 
       const isSuggestionsNav =
         shouldShowSuggestions &&
-        (keyMatchers[Command.COMPLETION_UP](key) ||
-          keyMatchers[Command.COMPLETION_DOWN](key) ||
-          keyMatchers[Command.EXPAND_SUGGESTION](key) ||
-          keyMatchers[Command.COLLAPSE_SUGGESTION](key) ||
-          keyMatchers[Command.ACCEPT_SUGGESTION](key));
+        (matchers[Command.COMPLETION_UP](key) ||
+          matchers[Command.COMPLETION_DOWN](key) ||
+          matchers[Command.EXPAND_SUGGESTION](key) ||
+          matchers[Command.COLLAPSE_SUGGESTION](key) ||
+          matchers[Command.ACCEPT_SUGGESTION](key));
 
       // Reset completion suppression if the user performs any action other than
       // history navigation or cursor movement.
       // We explicitly skip this if we are currently navigating suggestions.
       if (!isSuggestionsNav) {
         setSuppressCompletion(
-          isHistoryNav || isCursorMovement || keyMatchers[Command.ESCAPE](key),
+          isHistoryNav || isCursorMovement || matchers[Command.ESCAPE](key),
         );
         hasUserNavigatedSuggestions.current = false;
 
@@ -728,7 +728,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           }, 40);
         }
         // Ensure we never accidentally interpret paste as regular input.
-        buffer.handleInput(key);
+        buffer.handleInput(key, matchers);
         if (key.sequence && isLargePaste(key.sequence)) {
           appEvents.emit(AppEvent.TransientMessage, {
             message: `Press ${formatCommand(Command.EXPAND_PASTE)} to expand pasted text`,
@@ -738,14 +738,17 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         return true;
       }
 
-      if (shortcutsHelpVisible && shouldDismissShortcutsHelpOnHotkey(key)) {
+      if (
+        shortcutsHelpVisible &&
+        shouldDismissShortcutsHelpOnHotkey(key, matchers)
+      ) {
         setShortcutsHelpVisible(false);
       }
 
       if (shortcutsHelpVisible) {
         if (key.sequence === '?' && key.insertable) {
           setShortcutsHelpVisible(false);
-          buffer.handleInput(key);
+          buffer.handleInput(key, matchers);
           return true;
         }
         // Escape is handled earlier to ensure it closes the panel before
@@ -769,7 +772,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         return true;
       }
 
-      if (vimHandleInput && vimHandleInput(key)) {
+      if (vimHandleInput && vimHandleInput(key, matchers)) {
         return true;
       }
 
@@ -779,7 +782,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       // Ctrl+O to expand/collapse paste placeholders
-      if (keyMatchers[Command.EXPAND_PASTE](key)) {
+      if (matchers[Command.EXPAND_PASTE](key)) {
         const handled = tryTogglePasteExpansion(buffer);
         if (handled) return true;
       }
@@ -794,7 +797,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         return true;
       }
 
-      if (keyMatchers[Command.ESCAPE](key)) {
+      if (matchers[Command.ESCAPE](key)) {
         const cancelSearch = (
           setActive: (active: boolean) => void,
           resetCompletion: () => void,
@@ -843,13 +846,13 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         return true;
       }
 
-      if (keyMatchers[Command.CLEAR_SCREEN](key)) {
+      if (matchers[Command.CLEAR_SCREEN](key)) {
         setBannerVisible(false);
         onClearScreen();
         return true;
       }
 
-      if (shellModeActive && keyMatchers[Command.REVERSE_SEARCH](key)) {
+      if (shellModeActive && matchers[Command.REVERSE_SEARCH](key)) {
         setReverseSearchActive(true);
         setTextBeforeReverseSearch(buffer.text);
         setCursorPosition(buffer.cursor);
@@ -876,27 +879,27 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         const resetState = sc.resetCompletionState;
 
         if (showSuggestions) {
-          if (keyMatchers[Command.NAVIGATION_UP](key)) {
+          if (matchers[Command.NAVIGATION_UP](key)) {
             navigateUp();
             return true;
           }
-          if (keyMatchers[Command.NAVIGATION_DOWN](key)) {
+          if (matchers[Command.NAVIGATION_DOWN](key)) {
             navigateDown();
             return true;
           }
-          if (keyMatchers[Command.COLLAPSE_SUGGESTION](key)) {
+          if (matchers[Command.COLLAPSE_SUGGESTION](key)) {
             if (suggestions[activeSuggestionIndex].value.length >= MAX_WIDTH) {
               setExpandedSuggestionIndex(-1);
               return true;
             }
           }
-          if (keyMatchers[Command.EXPAND_SUGGESTION](key)) {
+          if (matchers[Command.EXPAND_SUGGESTION](key)) {
             if (suggestions[activeSuggestionIndex].value.length >= MAX_WIDTH) {
               setExpandedSuggestionIndex(activeSuggestionIndex);
               return true;
             }
           }
-          if (keyMatchers[Command.ACCEPT_SUGGESTION_REVERSE_SEARCH](key)) {
+          if (matchers[Command.ACCEPT_SUGGESTION_REVERSE_SEARCH](key)) {
             sc.handleAutocomplete(activeSuggestionIndex);
             resetState();
             setActive(false);
@@ -904,7 +907,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           }
         }
 
-        if (keyMatchers[Command.SUBMIT_REVERSE_SEARCH](key)) {
+        if (matchers[Command.SUBMIT_REVERSE_SEARCH](key)) {
           const textToSubmit =
             showSuggestions && activeSuggestionIndex > -1
               ? suggestions[activeSuggestionIndex].value
@@ -917,8 +920,8 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
         // Prevent up/down from falling through to regular history navigation
         if (
-          keyMatchers[Command.NAVIGATION_UP](key) ||
-          keyMatchers[Command.NAVIGATION_DOWN](key)
+          matchers[Command.NAVIGATION_UP](key) ||
+          matchers[Command.NAVIGATION_DOWN](key)
         ) {
           return true;
         }
@@ -928,7 +931,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       // We prioritize execution unless the user is explicitly selecting a different suggestion.
       if (
         completion.isPerfectMatch &&
-        keyMatchers[Command.SUBMIT](key) &&
+        matchers[Command.SUBMIT](key) &&
         recentUnsafePasteTime === null &&
         (!(completion.showSuggestions && isShellSuggestionsVisible) ||
           (completion.activeSuggestionIndex <= 0 &&
@@ -939,20 +942,20 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       // Newline insertion
-      if (keyMatchers[Command.NEWLINE](key)) {
+      if (matchers[Command.NEWLINE](key)) {
         buffer.newline();
         return true;
       }
 
       if (completion.showSuggestions && isShellSuggestionsVisible) {
         if (completion.suggestions.length > 1) {
-          if (keyMatchers[Command.COMPLETION_UP](key)) {
+          if (matchers[Command.COMPLETION_UP](key)) {
             completion.navigateUp();
             hasUserNavigatedSuggestions.current = true;
             setExpandedSuggestionIndex(-1); // Reset expansion when navigating
             return true;
           }
-          if (keyMatchers[Command.COMPLETION_DOWN](key)) {
+          if (matchers[Command.COMPLETION_DOWN](key)) {
             completion.navigateDown();
             hasUserNavigatedSuggestions.current = true;
             setExpandedSuggestionIndex(-1); // Reset expansion when navigating
@@ -960,7 +963,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           }
         }
 
-        if (keyMatchers[Command.ACCEPT_SUGGESTION](key)) {
+        if (matchers[Command.ACCEPT_SUGGESTION](key)) {
           if (completion.suggestions.length > 0) {
             const targetIndex =
               completion.activeSuggestionIndex === -1
@@ -1050,7 +1053,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       if (!shellModeActive) {
-        if (keyMatchers[Command.REVERSE_SEARCH](key)) {
+        if (matchers[Command.REVERSE_SEARCH](key)) {
           setCommandSearchActive(true);
           setTextBeforeReverseSearch(buffer.text);
           setCursorPosition(buffer.cursor);
@@ -1059,7 +1062,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
         if (isHistoryUp) {
           if (
-            keyMatchers[Command.NAVIGATION_UP](key) &&
+            matchers[Command.NAVIGATION_UP](key) &&
             buffer.visualCursor[1] > 0
           ) {
             buffer.move('home');
@@ -1076,7 +1079,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         }
         if (isHistoryDown) {
           if (
-            keyMatchers[Command.NAVIGATION_DOWN](key) &&
+            matchers[Command.NAVIGATION_DOWN](key) &&
             buffer.visualCursor[1] <
               cpLen(buffer.allVisualLines[buffer.visualCursor[0]] || '')
           ) {
@@ -1088,7 +1091,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         }
       } else {
         // Shell History Navigation
-        if (keyMatchers[Command.NAVIGATION_UP](key)) {
+        if (matchers[Command.NAVIGATION_UP](key)) {
           if (
             (buffer.allVisualLines.length === 1 ||
               (buffer.visualCursor[0] === 0 && buffer.visualScrollRow === 0)) &&
@@ -1101,7 +1104,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           if (prevCommand !== null) buffer.setText(prevCommand);
           return true;
         }
-        if (keyMatchers[Command.NAVIGATION_DOWN](key)) {
+        if (matchers[Command.NAVIGATION_DOWN](key)) {
           if (
             (buffer.allVisualLines.length === 1 ||
               buffer.visualCursor[0] === buffer.allVisualLines.length - 1) &&
@@ -1117,7 +1120,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         }
       }
 
-      if (keyMatchers[Command.SUBMIT](key)) {
+      if (matchers[Command.SUBMIT](key)) {
         if (buffer.text.trim()) {
           // Check if a paste operation occurred recently to prevent accidental auto-submission
           if (recentUnsafePasteTime !== null) {
@@ -1145,49 +1148,49 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       // Ctrl+A (Home) / Ctrl+E (End)
-      if (keyMatchers[Command.HOME](key)) {
+      if (matchers[Command.HOME](key)) {
         buffer.move('home');
         return true;
       }
-      if (keyMatchers[Command.END](key)) {
+      if (matchers[Command.END](key)) {
         buffer.move('end');
         return true;
       }
 
       // Kill line commands
-      if (keyMatchers[Command.KILL_LINE_RIGHT](key)) {
+      if (matchers[Command.KILL_LINE_RIGHT](key)) {
         buffer.killLineRight();
         return true;
       }
-      if (keyMatchers[Command.KILL_LINE_LEFT](key)) {
+      if (matchers[Command.KILL_LINE_LEFT](key)) {
         buffer.killLineLeft();
         return true;
       }
 
-      if (keyMatchers[Command.DELETE_WORD_BACKWARD](key)) {
+      if (matchers[Command.DELETE_WORD_BACKWARD](key)) {
         buffer.deleteWordLeft();
         return true;
       }
 
       // External editor
-      if (keyMatchers[Command.OPEN_EXTERNAL_EDITOR](key)) {
+      if (matchers[Command.OPEN_EXTERNAL_EDITOR](key)) {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         buffer.openInExternalEditor();
         return true;
       }
 
       // Ctrl+V for clipboard paste
-      if (keyMatchers[Command.PASTE_CLIPBOARD](key)) {
+      if (matchers[Command.PASTE_CLIPBOARD](key)) {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         handleClipboardPaste();
         return true;
       }
 
-      if (keyMatchers[Command.TOGGLE_BACKGROUND_SHELL](key)) {
+      if (matchers[Command.TOGGLE_BACKGROUND_SHELL](key)) {
         return false;
       }
 
-      if (keyMatchers[Command.FOCUS_SHELL_INPUT](key)) {
+      if (matchers[Command.FOCUS_SHELL_INPUT](key)) {
         if (
           activePtyId ||
           (backgroundShells.size > 0 && backgroundShellHeight > 0)
@@ -1199,10 +1202,10 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       // Fall back to the text buffer's default input handling for all other keys
-      const handled = buffer.handleInput(key);
+      const handled = buffer.handleInput(key, matchers);
 
       if (handled) {
-        if (keyMatchers[Command.CLEAR_INPUT](key)) {
+        if (matchers[Command.CLEAR_INPUT](key)) {
           resetCompletionState();
         }
 
@@ -1263,7 +1266,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     ],
   );
 
-  useKeypress(handleInput, {
+  useKeypress((key, matchers) => handleInput(key, matchers), {
     isActive: !isEmbeddedShellFocused,
     priority: true,
   });

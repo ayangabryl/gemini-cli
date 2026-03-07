@@ -13,7 +13,7 @@ import chalk from 'chalk';
 import { theme } from '../../semantic-colors.js';
 import type { TextBuffer } from './text-buffer.js';
 import { cpSlice, cpIndexToOffset } from '../../utils/textUtils.js';
-import { keyMatchers, Command } from '../../keyMatchers.js';
+import { Command, type KeyMatchers } from '../../keyMatchers.js';
 
 export interface TextInputProps {
   buffer: TextBuffer;
@@ -40,24 +40,27 @@ export function TextInput({
   const [cursorVisualRowAbsolute, cursorVisualColAbsolute] = visualCursor;
 
   const handleKeyPress = useCallback(
-    (key: Key) => {
+    (key: Key, matchers: KeyMatchers) => {
       if (key.name === 'escape' && onCancel) {
         onCancel();
         return true;
       }
 
-      if (keyMatchers[Command.SUBMIT](key) && onSubmit) {
+      if (matchers[Command.SUBMIT](key) && onSubmit) {
         onSubmit(text);
         return true;
       }
 
-      const handled = handleInput(key);
+      const handled = handleInput(key, matchers);
       return handled;
     },
     [handleInput, onCancel, onSubmit, text],
   );
 
-  useKeypress(handleKeyPress, { isActive: focus, priority: true });
+  useKeypress((key, matchers) => handleKeyPress(key, matchers), {
+    isActive: focus,
+    priority: true,
+  });
 
   const showPlaceholder = text.length === 0 && placeholder;
 

@@ -9,8 +9,8 @@ import { useCallback, useMemo, useReducer } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { useSettingsStore } from '../contexts/SettingsContext.js';
-import { useKeypress, type Key } from '../hooks/useKeypress.js';
-import { keyMatchers, Command } from '../keyMatchers.js';
+import { useKeypress, type Key as _Key } from '../hooks/useKeypress.js';
+import { Command } from '../keyMatchers.js';
 import { FooterRow, type FooterRowItem } from './Footer.js';
 import { ALL_ITEMS, resolveFooterState } from '../../config/footerItems.js';
 import { SettingScope } from '../../config/settings.js';
@@ -195,13 +195,13 @@ export const FooterConfigDialog: React.FC<FooterConfigDialogProps> = ({
   }, [setSetting, settings.merged.ui.footer.showLabels]);
 
   useKeypress(
-    (key: Key) => {
-      if (keyMatchers[Command.ESCAPE](key)) {
+    (key, matchers) => {
+      if (matchers[Command.ESCAPE](key)) {
         handleSaveAndClose();
         return true;
       }
 
-      if (keyMatchers[Command.DIALOG_NAVIGATION_UP](key)) {
+      if (matchers[Command.DIALOG_NAVIGATION_UP](key)) {
         dispatch({
           type: 'MOVE_UP',
           itemCount: listItems.length,
@@ -210,7 +210,7 @@ export const FooterConfigDialog: React.FC<FooterConfigDialogProps> = ({
         return true;
       }
 
-      if (keyMatchers[Command.DIALOG_NAVIGATION_DOWN](key)) {
+      if (matchers[Command.DIALOG_NAVIGATION_DOWN](key)) {
         dispatch({
           type: 'MOVE_DOWN',
           itemCount: listItems.length,
@@ -219,17 +219,17 @@ export const FooterConfigDialog: React.FC<FooterConfigDialogProps> = ({
         return true;
       }
 
-      if (keyMatchers[Command.MOVE_LEFT](key)) {
+      if (matchers[Command.MOVE_LEFT](key)) {
         dispatch({ type: 'MOVE_LEFT', items: listItems });
         return true;
       }
 
-      if (keyMatchers[Command.MOVE_RIGHT](key)) {
+      if (matchers[Command.MOVE_RIGHT](key)) {
         dispatch({ type: 'MOVE_RIGHT', items: listItems });
         return true;
       }
 
-      if (keyMatchers[Command.RETURN](key) || key.name === 'space') {
+      if (matchers[Command.RETURN](key) || key.name === 'space') {
         if (isResetFocused) {
           handleResetToDefaults();
         } else if (isShowLabelsFocused) {

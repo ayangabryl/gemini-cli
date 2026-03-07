@@ -41,6 +41,8 @@ vi.mock('../keyMatchers.js', () => ({
   },
 }));
 
+import { keyMatchers } from '../keyMatchers.js';
+
 describe('useTabbedNavigation', () => {
   let capturedHandler: KeypressHandler;
 
@@ -61,7 +63,7 @@ describe('useTabbedNavigation', () => {
       );
 
       act(() => {
-        capturedHandler(createKey({ name: 'right' }));
+        capturedHandler(createKey({ name: 'right' }), keyMatchers);
       });
 
       expect(result.current.currentIndex).toBe(1);
@@ -77,7 +79,7 @@ describe('useTabbedNavigation', () => {
       );
 
       act(() => {
-        capturedHandler(createKey({ name: 'left' }));
+        capturedHandler(createKey({ name: 'left' }), keyMatchers);
       });
 
       expect(result.current.currentIndex).toBe(0);
@@ -89,7 +91,7 @@ describe('useTabbedNavigation', () => {
       );
 
       act(() => {
-        capturedHandler(createKey({ name: 'tab', shift: false }));
+        capturedHandler(createKey({ name: 'tab', shift: false }), keyMatchers);
       });
 
       expect(result.current.currentIndex).toBe(1);
@@ -105,7 +107,7 @@ describe('useTabbedNavigation', () => {
       );
 
       act(() => {
-        capturedHandler(createKey({ name: 'tab', shift: true }));
+        capturedHandler(createKey({ name: 'tab', shift: true }), keyMatchers);
       });
 
       expect(result.current.currentIndex).toBe(0);
@@ -121,7 +123,7 @@ describe('useTabbedNavigation', () => {
       );
 
       act(() => {
-        capturedHandler(createKey({ name: 'right' }));
+        capturedHandler(createKey({ name: 'right' }), keyMatchers);
       });
 
       expect(result.current.currentIndex).toBe(0);
